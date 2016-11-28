@@ -1,5 +1,6 @@
+from collections import Sequence, Mapping, OrderedDict
 from functools import singledispatch
-from collections import Sequence, Mapping
+from itertools import islice
 
 D, L, I, E, C = b'dlie:'
 
@@ -61,19 +62,19 @@ def encode(v):
 
 # Decode
 
-def get_int(bs, i, char):
+def parse_int(bs, i, char):
     j = bs.index(char, i)
     res = int(bs[i:j].decode())
     return res, j+1
 
 
-def get_str(bs, i):
-    len_, i = get_int(bs, i, C)
+def parse_str(bs, i):
+    len_, i = parse_int(bs, i, C)
     j = i + len_
     return bs[i:j], j
 
 
-def get_list(bs, i):
+def parse_seq(bs, i):
     l = []
     while True:
         v, i = parse(bs, i)
@@ -83,20 +84,13 @@ def get_list(bs, i):
             l.append(v)
 
 
-def get_dict(bs, i):
-    d = {}
-    while True:
-        k, i = parse(bs, i)
-        if k == E:
-            return d, i
-        elif not isinstance(k, bytes):
-            raise ValueError('Dictionary key should be "bytes" instance, got {} instead'
-                             .format(type(k)))
-        else:
-            v, i = parse(bs, i)
-            if v == E:
-                raise ValueError('Unexpected end of a dictionary')
-            d[k] = v
+def parse_dict(bs, i):
+    seq, i = parse_seq(bs, i)
+    if len(seq) % 2 != 0:
+        raise ValueError('Unexpected end of a dictionary')
+    if not all(isinstance(k, bytes) for k in islice(seq, 0, len(seq), 2)):
+        raise ValueError('Dictionary key should be "bytes" instance')
+    return OrderedDict(zip(*[iter(seq)]*2)), i
 
 
 def parse(bs, i):
@@ -104,13 +98,13 @@ def parse(bs, i):
     if c == E:
         return E, i+1
     elif c == D:
-        return get_dict(bs, i+1)
+        return parse_dict(bs, i+1)
     elif c == L:
-        return get_list(bs, i+1)
+        return parse_seq(bs, i+1)
     elif c == I:
-        return get_int(bs, i+1, E)
+        return parse_int(bs, i+1, E)
     else:  # assume string
-        return get_str(bs, i)
+        return parse_str(bs, i)
 
 
 def decode(bs):
