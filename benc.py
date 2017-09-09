@@ -1,13 +1,12 @@
 from collections import Sequence, Mapping, OrderedDict
 from functools import singledispatch
-from itertools import islice
 
 D, L, I, E, C = b'dlie:'
 
 
 # Encode
 
-def _compound(seq, type_, out):
+def _compound(type_, seq, out):
     out.append(type_)
     for e in seq:
         encoder(e, out)
@@ -45,13 +44,13 @@ def s(s, out):
 
 
 @encoder.register(Sequence)
-def l(l, out):
-    _compound(l, L, out)
+def l(seq, out):
+    _compound(L, seq, out)
 
 
 @encoder.register(Mapping)
-def d(m, out):
-    _compound(_flat(m), D, out)
+def d(map_, out):
+    _compound(D, _flat(map_), out)
 
 
 def encode(v):
@@ -88,7 +87,7 @@ def parse_dict(bs, i):
     seq, i = parse_seq(bs, i)
     if len(seq) % 2 != 0:
         raise ValueError('Unexpected end of a dictionary')
-    if not all(isinstance(k, bytes) for k in islice(seq, 0, len(seq), 2)):
+    if not all(isinstance(k, bytes) for k in seq[::2]):
         raise ValueError('Dictionary key should be "bytes" instance')
     return OrderedDict(zip(*[iter(seq)]*2)), i
 
